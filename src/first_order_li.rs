@@ -13,49 +13,92 @@ pub struct FirstOrderLi {
     pub tau_ref: f64,
     pub output: f64,
     pub refractory_time: f64,
+    pub gain: f64,
+    pub bias: f64,
 
     pub v_history: Vec<f64>,
     pub v_th_history: Vec<f64>,
     pub output_history: Vec<f64>,
 }
 
-impl Default for FirstOrderLi {
-    fn default() -> Self {
-        Self {
+impl FirstOrderLi {
+    pub fn new(max_rate: f64, intercept: f64) -> Self {
+        let mut lif = Self {
             tau_rc: 0.2,
-            v: 0.0,
-            v_th: 1.0,
+            v: 0.,
+            v_th: 1.,
             tau_ref: 0.002,
-            output: 0.0,
-            refractory_time: 0.0,
+            output: 0.,
+            refractory_time: 0.,
+            bias: 0.,
+            gain: 0.,
 
             v_history: vec![],
             v_th_history: vec![],
             output_history: vec![],
-        }
-    }
-}
+        };
 
-impl FirstOrderLi {
+        let (gain, bias) = lif.gain_bias(max_rate, intercept);
+        lif.gain = gain;
+        lif.bias = bias;
+        lif
+    }
+
     pub fn step(&mut self, i: f64, t_step: f64) {
         self.refractory_time -= t_step;
 
-        if self.refractory_time < 0.0 {
-            self.v = self.v * (1.0 - t_step / self.tau_rc) + i * t_step / self.tau_rc;
+        if self.refractory_time < 0. {
+            self.v = self.v * (1. - t_step / self.tau_rc) + i * t_step / self.tau_rc;
         }
 
         if self.v > self.v_th {
             self.refractory_time = self.tau_ref;
             self.output = 1.0 / t_step;
-            self.v = 0.0;
+            self.v = 0.;
         } else {
-            self.output = 0.0
+            self.output = 0.
         }
 
         // Update history for plotting
         self.v_history.push(self.v);
         self.v_th_history.push(self.v_th);
         self.output_history.push(self.output);
+    }
+
+    pub fn analytical_rate(&self, input: f64) -> f64 {
+        if input <= self.v_th {
+            0.
+        } else {
+            1. / (self.tau_ref - self.tau_rc * (1. - self.v_th / input).ln())
+        }
+    }
+
+    pub fn decoder(&self, range_low: f64, range_high: f64, interval: f64) -> f64 {
+        let mut numerator = 0.;
+        let mut denominator = 0.;
+        let mut i = range_low;
+        let mut r: f64;
+        while i < range_high {
+            r = self.analytical_rate(i);
+            numerator += r * i;
+            denominator += r * r;
+            i += interval;
+        }
+        numerator / denominator
+    }
+
+    pub fn reset(&mut self) {
+        self.v = 0.;
+        self.output = 0.;
+        self.refractory_time = 0.;
+    }
+
+    pub fn gain_bias(&self, max_rate: f64, intercept: f64) -> (f64, f64) {
+        let gain = self.v_th
+            * (1. - 1. / (1. - ((self.tau_ref - 1. / max_rate) / self.tau_ref).exp()))
+            / (intercept - 1.);
+        let bias = self.v_th - gain * intercept;
+        (gain, bias)
     }
 
     pub fn add_v_history_to_plot(&self, times: &Vec<f64>, plt: &mut Plot) {
