@@ -6,7 +6,7 @@ use plotly::{
 
 use crate::utils::scale_to_range;
 
-pub struct FirstOrderLi {
+pub struct FirstOrderLif {
     pub tau_rc: f64,
     pub v: f64,
     pub v_th: f64,
@@ -15,14 +15,15 @@ pub struct FirstOrderLi {
     pub refractory_time: f64,
     pub gain: f64,
     pub bias: f64,
+    pub encoder: i32,
 
     pub v_history: Vec<f64>,
     pub v_th_history: Vec<f64>,
     pub output_history: Vec<f64>,
 }
 
-impl FirstOrderLi {
-    pub fn new(max_rate: f64, intercept: f64) -> Self {
+impl FirstOrderLif {
+    pub fn new(max_rate: f64, intercept: f64, encoder: i32) -> Self {
         let mut lif = Self {
             tau_rc: 0.2,
             v: 0.,
@@ -32,6 +33,7 @@ impl FirstOrderLi {
             refractory_time: 0.,
             bias: 0.,
             gain: 0.,
+            encoder: encoder,
 
             v_history: vec![],
             v_th_history: vec![],
@@ -44,7 +46,7 @@ impl FirstOrderLi {
         lif
     }
 
-    pub fn step(&mut self, i: f64, t_step: f64) {
+    pub fn step(&mut self, i: f64, t_step: f64) -> f64 {
         self.refractory_time -= t_step;
 
         if self.refractory_time < 0. {
@@ -63,6 +65,8 @@ impl FirstOrderLi {
         self.v_history.push(self.v);
         self.v_th_history.push(self.v_th);
         self.output_history.push(self.output);
+
+        self.output
     }
 
     pub fn analytical_rate(&self, input: f64) -> f64 {

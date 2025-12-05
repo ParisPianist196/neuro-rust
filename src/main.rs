@@ -1,8 +1,11 @@
-mod first_order_li;
-use first_order_li::FirstOrderLi;
+mod first_order_lif;
+use first_order_lif::FirstOrderLif;
 
 mod first_order_synapse;
 use first_order_synapse::FirstOrderSynapse;
+
+mod first_order_lif_collection;
+use first_order_lif_collection::FirstOrderLifCollection;
 
 mod waveforms;
 use waveforms::Sine;
@@ -13,7 +16,7 @@ use plotly::Plot;
 
 use crate::waveforms::PlotWaveform;
 
-fn full_plot() -> Result<(), Box<dyn std::error::Error>> {
+fn plot_synapse_example() -> Result<(), Box<dyn std::error::Error>> {
     const T_STEP: f64 = 0.01;
     let duration = 12.0;
     let num_steps = (duration / T_STEP) as usize;
@@ -24,7 +27,7 @@ fn full_plot() -> Result<(), Box<dyn std::error::Error>> {
     let input = waveform.get_samples(times.len());
 
     // Neuron
-    let mut neuron = FirstOrderLi::new(300., 0.5);
+    let mut neuron = FirstOrderLif::new(300., 0.5);
 
     // Synapse
     let mut synapse = FirstOrderSynapse::default();
@@ -56,7 +59,12 @@ fn full_plot() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn plot_collection_example() -> Result<(), String> {
+    let collection = FirstOrderLifCollection::new();
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    full_plot()?;
+    plot_collection_example()?;
     Ok(())
 }

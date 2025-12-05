@@ -3,8 +3,6 @@ use plotly::{
     common::{Line, Mode},
 };
 
-use crate::first_order_li::FirstOrderLi;
-
 pub struct FirstOrderSynapse {
     pub tau_s: f64,
     pub output: f64,
