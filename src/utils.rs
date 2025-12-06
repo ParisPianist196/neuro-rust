@@ -1,5 +1,8 @@
 use crate::first_order_lif::FirstOrderLif;
 
+use rand::seq::IndexedRandom;
+use rand::{Rng, SeedableRng};
+
 pub fn square_wave_at_t(t: &f64, off_time_interval: i32, on_time_interval: i32) -> f64 {
     if t.rem_euclid((off_time_interval + on_time_interval) as f64) < off_time_interval as f64 {
         1.0
@@ -21,6 +24,16 @@ pub fn min_max_step_range(min: f64, max: f64, step: f64) -> Vec<f64> {
     let num_steps = (int_range / step) as usize + 1; // +1 to include endpoint
     let inputs: Vec<f64> = (0..num_steps).map(|i| -1.0 + i as f64 * step).collect();
     inputs
+}
+
+pub fn random_color_hex() -> String {
+    let mut rng = rand::rng();
+    format!(
+        "#{:02X}{:02X}{:02X}",
+        rng.random::<u8>(),
+        rng.random::<u8>(),
+        rng.random::<u8>()
+    )
 }
 
 // TODO 12/5/25 - Find a better place for this

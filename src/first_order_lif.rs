@@ -1,10 +1,4 @@
-use plotly::{
-    Layout, Plot, Scatter,
-    common::{DashType::Dot, Line, Mode},
-    layout::{Shape, ShapeLine},
-};
-
-use crate::utils::scale_to_range;
+use crate::simulation::NeuronSimulation;
 
 pub struct FirstOrderLif {
     pub tau_rc: f64,
@@ -16,12 +10,6 @@ pub struct FirstOrderLif {
     pub gain: f64,
     pub bias: f64,
     pub encoder: i32,
-}
-
-pub struct FirstOrderLifSimulation {
-    pub v_history: Vec<f64>,
-    pub v_th_history: Vec<f64>,
-    pub output_history: Vec<f64>,
 }
 
 impl FirstOrderLif {
@@ -44,12 +32,7 @@ impl FirstOrderLif {
         lif
     }
 
-    pub fn step(
-        &mut self,
-        i: f64,
-        t_step: f64,
-        simulation: Option<&mut FirstOrderLifSimulation>,
-    ) -> f64 {
+    pub fn step(&mut self, i: f64, t_step: f64, sim: Option<&mut NeuronSimulation>) -> f64 {
         self.refractory_time -= t_step;
 
         if self.refractory_time < 0. {
@@ -65,13 +48,10 @@ impl FirstOrderLif {
         }
 
         // Update history for plotting
-        match simulation {
-            Some(sim) => {
-                sim.v_history.push(self.v);
-                sim.v_th_history.push(self.v_th);
-                sim.output_history.push(self.output);
-            }
-            None => (),
+        if let Some(sim) = sim {
+            sim.v.record(self.v);
+            sim.v_th.record(self.v_th);
+            sim.output.record(self.output);
         }
 
         self.output
@@ -111,79 +91,5 @@ impl FirstOrderLif {
             / (intercept - 1.);
         let bias = self.v_th - gain * intercept;
         (gain, bias)
-    }
-}
-
-impl FirstOrderLifSimulation {
-    pub fn get_spike_indices(&self) -> Result<Vec<usize>, String> {
-        if self.output_history.len() <= 0 {
-            return Err("No output history for neuron. Try executing step function.".to_string());
-        }
-        Ok(self
-            .output_history
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &output)| if output > 0.0 { Some(i) } else { None })
-            .collect())
-    }
-
-    pub fn add_v_history_to_plot(&self, times: &Vec<f64>, plt: &mut Plot) {
-        let trace = Scatter::new(times.clone(), self.v_history.clone())
-            .mode(Mode::Lines)
-            .line(Line::new().color("blue").width(2.0))
-            .name("V");
-        plt.add_trace(trace);
-    }
-
-    pub fn add_v_th_history_to_plot(&self, times: &Vec<f64>, plt: &mut Plot) {
-        let trace = Scatter::new(times.clone(), self.v_th_history.clone())
-            .mode(Mode::Lines)
-            .line(Line::new().color("green").width(2.0).dash(Dot))
-            .name("V_th");
-        plt.add_trace(trace);
-    }
-
-    pub fn add_output_history_to_plot(&self, times: &Vec<f64>, plt: &mut Plot, scale: bool) {
-        let mut temp_output = self.output_history.clone();
-        if scale {
-            temp_output = scale_to_range(&temp_output, 0.0, 1.0);
-        }
-
-        let trace = Scatter::new(times.clone(), temp_output)
-            .mode(Mode::Lines)
-            .line(Line::new().color("yellow").width(2.0))
-            .name("Output");
-        plt.add_trace(trace);
-    }
-
-    pub fn add_spikes_to_plot(&self, times: &Vec<f64>, plt: &mut Plot) -> Result<(), String> {
-        if times.len() != self.output_history.len() {
-            return Err(
-                "Cannot add spikes to plot. Mismatch between times dimension and neuron output history".to_string(),
-            );
-        }
-        let vlines: Vec<Shape> = self
-            .get_spike_indices()?
-            .into_iter()
-            .map(|i| {
-                Shape::new()
-                    .x0(times[i])
-                    .x1(times[i])
-                    .y0(0.0)
-                    .y1(1.0)
-                    .line(ShapeLine::new().color("red").width(1.0))
-                    .name("Spikes")
-            })
-            .collect();
-        let label_trace = Scatter::new(vec![0.0], vec![0.0])
-            .mode(Mode::Lines)
-            .line(Line::new().color("red").width(1.0))
-            .name("Spikes");
-
-        plt.add_trace(label_trace);
-
-        let layout = Layout::new().shapes(vlines);
-        plt.set_layout(layout);
-        Ok(())
     }
 }
