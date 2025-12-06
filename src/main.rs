@@ -115,7 +115,7 @@ fn plot_synapses_signal() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let mut synapses = FirstOrderSynapsesCollection::new(15, 0.05);
 
-    let times = min_max_step_range(0., DURATION, T_STEP);
+    let times = min_max_step_range(0. + T_STEP, DURATION, T_STEP);
     let mut plt: Plot = Plot::new();
     let waveform: Sine = Sine::new(DURATION as f32 / 2. / T_STEP as f32, 1., 2., 0.);
     let inputs = waveform.get_samples((DURATION / T_STEP) as usize);
@@ -132,11 +132,13 @@ fn plot_synapses_signal() -> Result<(), Box<dyn std::error::Error>> {
     let phi_vec = DVector::from_vec(decoders);
     let outputs = exp_simulation.synapse_outputs()?;
 
-    let decoded: DVector<f64> = outputs * phi_vec;
+    let decoded: DVector<f64> = &outputs * &phi_vec;
 
-    let trace = Scatter::new(times.clone(), decoded.as_slice().to_vec());
+    let trace: Box<Scatter<f64, f64>> =
+        Scatter::new(times.clone(), decoded.as_slice().to_vec()).name("Output");
     plt.add_trace(trace);
-    plt.show();
+    waveform.add_to_plot(&times, &mut plt, "Signal");
+    plt.write_html("out.html");
 
     Ok(())
 }
