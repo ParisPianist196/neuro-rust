@@ -1,3 +1,5 @@
+use nalgebra::clamp;
+
 use crate::simulation::NeuronSimulation;
 
 pub struct FirstOrderLif {
@@ -35,12 +37,13 @@ impl FirstOrderLif {
     pub fn step(&mut self, i: f64, t_step: f64, sim: Option<&mut NeuronSimulation>) -> f64 {
         self.refractory_time -= t_step;
 
-        if self.refractory_time < 0. {
-            self.v = self.v * (1. - t_step / self.tau_rc) + i * t_step / self.tau_rc;
-        }
+        let delta_t = clamp(t_step - self.refractory_time, 0., t_step);
+
+        self.v = i + (self.v - i) * (-delta_t / self.tau_rc).exp();
 
         if self.v > self.v_th {
-            self.refractory_time = self.tau_ref;
+            let spike_time = delta_t + self.tau_rc * ((self.v - i) / (self.v_th - i)).log(10.);
+            self.refractory_time = self.tau_ref + spike_time;
             self.output = 1.0 / t_step;
             self.v = 0.;
         } else {
@@ -87,7 +90,7 @@ impl FirstOrderLif {
 
     pub fn gain_bias(&self, max_rate: f64, intercept: f64) -> (f64, f64) {
         let gain = self.v_th
-            * (1. - 1. / (1. - ((self.tau_ref - 1. / max_rate) / self.tau_ref).exp()))
+            * (1. - 1. / (1. - ((self.tau_ref - 1. / max_rate) / self.tau_rc).exp()))
             / (intercept - 1.);
         let bias = self.v_th - gain * intercept;
         (gain, bias)

@@ -22,7 +22,7 @@ use plotly::{Plot, Scatter};
 
 use crate::{
     simulation::ExperimentSimulation,
-    utils::{compute_tuning_curve, min_max_step_range},
+    utils::{compute_tuning_curve, min_max_step_range, weird_waveform},
     waveforms::PlotWaveform,
 };
 
@@ -104,27 +104,23 @@ fn plot_collection_tuning_curves(collection: &mut FirstOrderLifCollection) {
 fn plot_synapses_signal() -> Result<(), Box<dyn std::error::Error>> {
     const T_STEP: f64 = 0.001;
     const DURATION: f64 = 12.;
-    const NUM_NEURONS: usize = 15;
-    let mut lifs = FirstOrderLifCollection::new(
-        NUM_NEURONS,
-        0.02,
-        0.002,
-        (25., 100.),
-        (-1., 1.),
-        vec![-1, 1],
-    )?;
-    let mut synapses = FirstOrderSynapsesCollection::new(15, 0.05);
+    const NUM_NEURONS: usize = 105;
+    let mut lifs =
+        FirstOrderLifCollection::new(NUM_NEURONS, 0.2, 0.002, (25., 100.), (-1., 1.), vec![-1, 1])?;
+    let mut synapses = FirstOrderSynapsesCollection::new(NUM_NEURONS, 0.05);
 
-    let times = min_max_step_range(0. + T_STEP, DURATION, T_STEP);
+    let num_steps = (DURATION / T_STEP) as usize + 1; // +1 to include endpoint
+    let times: Vec<f64> = (0..num_steps).map(|i| -1.0 + i as f64 * T_STEP).collect();
     let mut plt: Plot = Plot::new();
-    let waveform: Sine = Sine::new(DURATION as f32 / 2. / T_STEP as f32, 1., 2., 0.);
-    let inputs = waveform.get_samples((DURATION / T_STEP) as usize);
+    // let waveform: Sine = Sine::new(DURATION as f32 / T_STEP as f32, 2., 2., 0.);
+    let inputs = weird_waveform(&times);
+    // let inputs = waveform.get_samples((DURATION / T_STEP) as usize);
 
     let decoders = lifs.get_decoders(&inputs)?;
 
     let mut exp_simulation = ExperimentSimulation::new(NUM_NEURONS, NUM_NEURONS);
 
-    for i in inputs {
+    for i in inputs.clone() {
         let lifs_out = lifs.step(i, T_STEP, Some(&mut exp_simulation.neurons));
         synapses.step(&lifs_out, T_STEP, Some(&mut exp_simulation.synapses))?;
     }
@@ -137,7 +133,8 @@ fn plot_synapses_signal() -> Result<(), Box<dyn std::error::Error>> {
     let trace: Box<Scatter<f64, f64>> =
         Scatter::new(times.clone(), decoded.as_slice().to_vec()).name("Output");
     plt.add_trace(trace);
-    waveform.add_to_plot(&times, &mut plt, "Signal");
+    let trace2: Box<Scatter<f64, f64>> = Scatter::new(times.clone(), inputs).name("Signal");
+    plt.add_trace(trace2);
     plt.write_html("out.html");
 
     Ok(())

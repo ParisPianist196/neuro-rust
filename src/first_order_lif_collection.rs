@@ -78,12 +78,7 @@ impl FirstOrderLifCollection {
         let n_inputs = inputs.len();
 
         // A: (neurons × inputs) matrix
-        let mut neuron_cross_inputs_mat: nalgebra::Matrix<
-            f64,
-            nalgebra::Dyn,
-            nalgebra::Dyn,
-            nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>,
-        > = DMatrix::<f64>::zeros(n_neurons, n_inputs);
+        let mut neuron_cross_inputs_mat = DMatrix::<f64>::zeros(n_neurons, n_inputs);
         for (i, curve) in tuning_curves.iter().enumerate() {
             for (j, val) in curve.iter().enumerate() {
                 neuron_cross_inputs_mat[(i, j)] = *val;

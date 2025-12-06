@@ -36,6 +36,17 @@ pub fn random_color_hex() -> String {
     )
 }
 
+pub fn weird_waveform(times: &Vec<f64>) -> Vec<f64> {
+    times
+        .iter()
+        .map(|&t| {
+            (2.0 * std::f64::consts::PI * 0.5 * t).sin()
+                + 0.7 * (2.0 * std::f64::consts::PI * 1.3 * t).sin()
+                + 0.3 * (2.0 * std::f64::consts::PI * 2.7 * t).sin()
+        })
+        .collect()
+}
+
 // TODO 12/5/25 - Find a better place for this
 pub fn compute_tuning_curve(
     neuron: &mut FirstOrderLif,

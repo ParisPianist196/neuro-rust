@@ -5,7 +5,7 @@ pub struct FirstOrderSynapsesCollection {
 }
 
 impl FirstOrderSynapsesCollection {
-    pub fn new(num_synapses: i32, tau_s: f64) -> Self {
+    pub fn new(num_synapses: usize, tau_s: f64) -> Self {
         let synapses = (0..num_synapses)
             .map(|_| {
                 let mut s = FirstOrderSynapse::default();
