@@ -16,7 +16,9 @@ pub struct FirstOrderLif {
     pub gain: f64,
     pub bias: f64,
     pub encoder: i32,
+}
 
+pub struct FirstOrderLifSimulation {
     pub v_history: Vec<f64>,
     pub v_th_history: Vec<f64>,
     pub output_history: Vec<f64>,
@@ -34,10 +36,6 @@ impl FirstOrderLif {
             bias: 0.,
             gain: 0.,
             encoder: encoder,
-
-            v_history: vec![],
-            v_th_history: vec![],
-            output_history: vec![],
         };
 
         let (gain, bias) = lif.gain_bias(max_rate, intercept);
@@ -46,7 +44,12 @@ impl FirstOrderLif {
         lif
     }
 
-    pub fn step(&mut self, i: f64, t_step: f64) -> f64 {
+    pub fn step(
+        &mut self,
+        i: f64,
+        t_step: f64,
+        simulation: Option<&mut FirstOrderLifSimulation>,
+    ) -> f64 {
         self.refractory_time -= t_step;
 
         if self.refractory_time < 0. {
@@ -62,9 +65,14 @@ impl FirstOrderLif {
         }
 
         // Update history for plotting
-        self.v_history.push(self.v);
-        self.v_th_history.push(self.v_th);
-        self.output_history.push(self.output);
+        match simulation {
+            Some(sim) => {
+                sim.v_history.push(self.v);
+                sim.v_th_history.push(self.v_th);
+                sim.output_history.push(self.output);
+            }
+            None => (),
+        }
 
         self.output
     }
@@ -104,6 +112,20 @@ impl FirstOrderLif {
         let bias = self.v_th - gain * intercept;
         (gain, bias)
     }
+}
+
+impl FirstOrderLifSimulation {
+    pub fn get_spike_indices(&self) -> Result<Vec<usize>, String> {
+        if self.output_history.len() <= 0 {
+            return Err("No output history for neuron. Try executing step function.".to_string());
+        }
+        Ok(self
+            .output_history
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &output)| if output > 0.0 { Some(i) } else { None })
+            .collect())
+    }
 
     pub fn add_v_history_to_plot(&self, times: &Vec<f64>, plt: &mut Plot) {
         let trace = Scatter::new(times.clone(), self.v_history.clone())
@@ -141,23 +163,16 @@ impl FirstOrderLif {
             );
         }
         let vlines: Vec<Shape> = self
-            .output_history
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &output)| {
-                if output > 0.0 {
-                    Some(
-                        Shape::new()
-                            .x0(times[i])
-                            .x1(times[i])
-                            .y0(0.0) // adjust y-range as needed
-                            .y1(1.0)
-                            .line(ShapeLine::new().color("red").width(1.0))
-                            .name("Spikes"),
-                    )
-                } else {
-                    None
-                }
+            .get_spike_indices()?
+            .into_iter()
+            .map(|i| {
+                Shape::new()
+                    .x0(times[i])
+                    .x1(times[i])
+                    .y0(0.0)
+                    .y1(1.0)
+                    .line(ShapeLine::new().color("red").width(1.0))
+                    .name("Spikes")
             })
             .collect();
         let label_trace = Scatter::new(vec![0.0], vec![0.0])
