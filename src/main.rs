@@ -10,6 +10,6 @@ mod utils;
 mod waveforms;
 use crate::emulations::c_elegans::c_elegans_nematode::test;
 
-pub fn main() {
-    let _ = test();
+pub fn main() -> Result<(), String> {
+    Ok(test()?)
 }

@@ -7,8 +7,8 @@ use std::num::ParseFloatError;
 pub struct Connection {
     pub target: usize,
     pub weight: f32,
-    pub synapse_type: String,
-    pub neurotransmitter: String,
+    // pub synapse_type: String,
+    // pub neurotransmitter: String,
 }
 
 #[derive(Debug)]
@@ -21,6 +21,7 @@ pub struct Connectome {
     pub adjacency: Vec<Vec<Connection>>,    // outgoing edges
 
     pub threshold: f32,
+    pub fired_neurons: Vec<bool>,
 }
 
 impl Connectome {
@@ -55,11 +56,11 @@ impl Connectome {
 
             let origin_name = &record[0];
             let target_name = &record[1];
-            let syn_type = record[2].to_string();
             let weight: f32 = record[3]
                 .parse()
                 .map_err(|err: ParseFloatError| err.to_string())?;
-            let neurotransmitter = record[4].to_string();
+            // let syn_type = record[2].to_string();
+            // let neurotransmitter = record[4].to_string();
 
             // Assign IDs
             let origin_id = get_id(origin_name, &mut neuron_map, &mut adjacency);
@@ -69,27 +70,31 @@ impl Connectome {
             adjacency[origin_id].push(Connection {
                 target: target_id,
                 weight,
-                synapse_type: syn_type,
-                neurotransmitter,
+                // synapse_type: syn_type,
+                // neurotransmitter,
             });
         }
-
+        let n = neuron_map.len();
         Ok(Self {
-            neuron_next_buffer: vec![],
-            neuron_current_buffer: vec![],
+            neuron_next_buffer: vec![0.; n],
+            neuron_current_buffer: vec![0.; n],
             neuron_map,
             adjacency,
             threshold,
+            fired_neurons: vec![false; n],
         })
     }
 
     /// Advance the neural system by one tick.
     /// `stimulated` is a list of neuron names to directly stimulate.
     pub fn step(&mut self, stimulated: &[&str]) {
+        // 0. Clear fired neurons
+        self.fired_neurons.fill(false);
+
         // 1. Apply external stimulation
         for &name in stimulated {
             if let Some(&id) = self.neuron_map.get(name) {
-                self.ping_neuron(id);
+                self.neuron_current_buffer[id] += 1.0;
             }
         }
 
@@ -121,5 +126,15 @@ impl Connectome {
     fn discharge_neuron(&mut self, id: usize) {
         self.ping_neuron(id);
         self.neuron_next_buffer[id] = 0.;
+        self.fired_neurons[id] = true;
+    }
+
+    // For the given muscle_set, output whether that muscle has discharged or not
+    pub fn discharge_query(&self, muscle_set: &[&str], muscle_result: &mut Vec<bool>) {
+        for (i, muscle) in muscle_set.iter().enumerate() {
+            if let Some(&id) = self.neuron_map.get(*muscle) {
+                muscle_result[i] = self.fired_neurons[id];
+            }
+        }
     }
 }
