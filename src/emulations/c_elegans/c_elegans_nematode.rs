@@ -7,23 +7,21 @@ pub fn test() -> Result<(), String> {
     const THRESHOLD: f32 = 30.;
 
     pub const MOTOR_NEURON_B: &[&str] = &[
-        "N_DB1", "N_DB2", "N_DB3", "N_DB4", "N_DB5", "N_DB6", "N_DB7", "N_VB1", "N_VB2", "N_VB3",
-        "N_VB4", "N_VB5", "N_VB6", "N_VB7", "N_VB8", "N_VB9", "N_VB10", "N_VB11",
+        "DB1", "DB2", "DB3", "DB4", "DB5", "DB6", "DB7", "VB1", "VB2", "VB3", "VB4", "VB5", "VB6",
+        "VB7", "VB8", "VB9", "VB10", "VB11",
     ];
 
     pub const MOTOR_NEURON_A: &[&str] = &[
-        "N_DA1", "N_DA2", "N_DA3", "N_DA4", "N_DA5", "N_DA6", "N_DA7", "N_DA8", "N_DA9", "N_VA1",
-        "N_VA2", "N_VA3", "N_VA4", "N_VA5", "N_VA6", "N_VA7", "N_VA8", "N_VA9", "N_VA10", "N_VA11",
-        "N_VA12",
+        "DA1", "DA2", "DA3", "DA4", "DA5", "DA6", "DA7", "DA8", "DA9", "VA1", "VA2", "VA3", "VA4",
+        "VA5", "VA6", "VA7", "VA8", "VA9", "VA10", "VA11", "VA12",
     ];
 
     let nose_touch_neurons = vec![
-        "N_FLPR", "N_FLPL", "N_ASHL", "N_ASHR", "N_IL1VL", "N_IL1VR", "N_OLQDL", "N_OLQDR",
-        "N_OLQVR", "N_OLQV",
+        "FLPR", "FLPL", "ASHL", "ASHR", "IL1VL", "IL1VR", "OLQDL", "OLQDR", "OLQVR", "OLQV",
     ];
 
     let chemotaxis_neurons = [
-        "N_ADFL", "N_ADFR", "N_ASGR", "N_ASGL", "N_ASIL", "N_ASIR", "N_ASJR", "N_ASJL",
+        "ADFL", "ADFR", "ASGR", "ASGL", "ASIL", "ASIR", "ASJR", "ASJL",
     ];
 
     let mut out_file = File::create("./motor_ab.dat").map_err(|err| err.to_string())?;
@@ -63,13 +61,13 @@ fn print_motor_ab_discharges<W: Write>(
     b: &Vec<bool>,
 ) -> Result<(), std::io::Error> {
     for i in 0..a.len() {
-        write!(w, "{} ", a[i])?;
+        write!(w, "{} ", if a[i] { 1 } else { 0 })?;
     }
 
     for i in 0..b.len() - 1 {
-        write!(w, "{} ", b[i])?;
+        write!(w, "{} ", if b[i] { 1 } else { 0 })?;
     }
 
-    writeln!(w, "{}", b[b.len() - 1])?;
+    writeln!(w, "{}", if b[b.len() - 1] { 1 } else { 0 })?;
     Ok(())
 }

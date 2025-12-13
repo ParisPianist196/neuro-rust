@@ -56,11 +56,34 @@ impl Connectome {
 
             let origin_name = &record[0];
             let target_name = &record[1];
-            let weight: f32 = record[3]
+            let num_connections: f32 = record[3]
                 .parse()
                 .map_err(|err: ParseFloatError| err.to_string())?;
-            // let syn_type = record[2].to_string();
-            // let neurotransmitter = record[4].to_string();
+            let syn_type = record[2].to_string();
+            let neurotransmitter = record[4].to_string();
+            // Base weight depending on synapse type
+            let mut base_weight: i16 = match syn_type.as_str() {
+                "Send" => 20,       // strong
+                "GapJunction" => 5, // weak
+                _ => 0,
+            };
+
+            // Inhibitory adjustment for GABA
+            if neurotransmitter == "GABA" {
+                base_weight = -base_weight;
+            }
+
+            // Scale by number of connections
+            let mut weight = base_weight * (num_connections as i16);
+
+            // Clamp to int8 range
+            if weight > 127 {
+                weight = 127;
+            } else if weight < -128 {
+                weight = -128;
+            }
+
+            let weight_f32 = weight as f32;
 
             // Assign IDs
             let origin_id = get_id(origin_name, &mut neuron_map, &mut adjacency);
@@ -69,7 +92,7 @@ impl Connectome {
             // Push connection
             adjacency[origin_id].push(Connection {
                 target: target_id,
-                weight,
+                weight: weight_f32,
                 // synapse_type: syn_type,
                 // neurotransmitter,
             });
@@ -94,7 +117,7 @@ impl Connectome {
         // 1. Apply external stimulation
         for &name in stimulated {
             if let Some(&id) = self.neuron_map.get(name) {
-                self.neuron_current_buffer[id] += 1.0;
+                self.ping_neuron(id);
             }
         }
 
