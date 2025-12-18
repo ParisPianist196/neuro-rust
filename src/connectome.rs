@@ -1,163 +1,209 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use std::num::ParseFloatError;
+use std::mem;
 
-#[derive(Debug, Clone)]
-pub struct Connection {
-    pub target: usize,
-    pub weight: f32,
-    // pub synapse_type: String,
-    // pub neurotransmitter: String,
+use crate::emulations::c_elegans::rom::ROM;
+
+/// Struct for representing a neuron connection
+#[derive(Copy, Clone)]
+struct NeuronConnection {
+    id: u16,
+    weight: i8,
 }
 
-#[derive(Debug)]
+/// Parse ROM word exactly like C
+fn parse_rom_word(rom_word: u16) -> NeuronConnection {
+    let [low, high] = rom_word.to_le_bytes();
+
+    // uint16_t id = rom_byte[1] + ((rom_byte[0] & 0x80) << 1);
+    let id = high as u16 + (((low & 0x80) as u16) << 1);
+
+    // uint8_t weight_bits = rom_byte[0] & 0x7F;
+    let mut weight_bits = low & 0x7F;
+
+    // weight_bits = weight_bits + ((weight_bits & 0x40) << 1);
+    weight_bits = weight_bits.wrapping_add((weight_bits & 0x40) << 1);
+
+    let weight = weight_bits as i8;
+
+    NeuronConnection { id, weight }
+}
+
+/// Connectome struct (layout mirrors C)
 pub struct Connectome {
-    // Double buffering
-    pub neuron_current_buffer: Vec<f32>,
-    pub neuron_next_buffer: Vec<f32>,
+    neurons_tot: u16,
+    muscles_tot: u8,
 
-    pub neuron_map: HashMap<String, usize>, // name → ID
-    pub adjacency: Vec<Vec<Connection>>,    // outgoing edges
+    neuron_current: Vec<i8>,
+    neuron_next: Vec<i8>,
 
-    pub threshold: f32,
-    pub fired_neurons: Vec<bool>,
+    muscle_current: Vec<i16>,
+    muscle_next: Vec<i16>,
+
+    // meta: [discharged_bit | idle_ticks(7 bits)]
+    meta: Vec<u8>,
 }
 
 impl Connectome {
-    pub fn new(mut csvfile: File, threshold: f32) -> Result<Self, String> {
-        // Read file into string
-        let mut contents = String::new();
-        csvfile
-            .read_to_string(&mut contents)
-            .map_err(|err| err.to_string())?;
+    /// Initialize connectome (ctm_init)
+    pub fn new() -> Self {
+        const CELLS: usize = 397; // example
+        let neurons_tot = ROM[0] as u16;
+        let muscles_tot = (CELLS as u16 - neurons_tot) as u8;
 
-        let mut reader = csv::Reader::from_reader(contents.as_bytes());
+        let neurons_usize = neurons_tot as usize;
+        let muscles_usize = muscles_tot as usize;
 
-        let mut neuron_map: HashMap<String, usize> = HashMap::new();
-        let mut adjacency: Vec<Vec<Connection>> = Vec::new();
+        Self {
+            neurons_tot,
+            muscles_tot,
 
-        // Function: get or create neuron ID
-        let get_id = |name: &str,
-                      neuron_map: &mut HashMap<String, usize>,
-                      adjacency: &mut Vec<Vec<Connection>>| {
-            if let Some(&id) = neuron_map.get(name) {
-                id
-            } else {
-                let id = neuron_map.len();
-                neuron_map.insert(name.to_string(), id);
-                adjacency.push(Vec::new());
-                id
-            }
-        };
+            neuron_current: vec![0; neurons_usize],
+            neuron_next: vec![0; neurons_usize],
 
-        for result in reader.records() {
-            let record = result.map_err(|err| err.to_string())?;
+            muscle_current: vec![0; muscles_usize],
+            muscle_next: vec![0; muscles_usize],
 
-            let origin_name = &record[0];
-            let target_name = &record[1];
-            let num_connections: f32 = record[3]
-                .parse()
-                .map_err(|err: ParseFloatError| err.to_string())?;
-            let syn_type = record[2].to_string();
-            let neurotransmitter = record[4].to_string();
-            // Base weight depending on synapse type
-            let mut base_weight: i16 = match syn_type.as_str() {
-                "Send" => 20,       // strong
-                "GapJunction" => 5, // weak
-                _ => 0,
-            };
-
-            // Inhibitory adjustment for GABA
-            if neurotransmitter == "GABA" {
-                base_weight = -base_weight;
-            }
-
-            // Scale by number of connections
-            let mut weight = base_weight * (num_connections as i16);
-
-            // Clamp to int8 range
-            if weight > 127 {
-                weight = 127;
-            } else if weight < -128 {
-                weight = -128;
-            }
-
-            let weight_f32 = weight as f32;
-
-            // Assign IDs
-            let origin_id = get_id(origin_name, &mut neuron_map, &mut adjacency);
-            let target_id = get_id(target_name, &mut neuron_map, &mut adjacency);
-
-            // Push connection
-            adjacency[origin_id].push(Connection {
-                target: target_id,
-                weight: weight_f32,
-                // synapse_type: syn_type,
-                // neurotransmitter,
-            });
+            meta: vec![0; neurons_usize],
         }
-        let n = neuron_map.len();
-        Ok(Self {
-            neuron_next_buffer: vec![0.; n],
-            neuron_current_buffer: vec![0.; n],
-            neuron_map,
-            adjacency,
-            threshold,
-            fired_neurons: vec![false; n],
-        })
     }
 
-    /// Advance the neural system by one tick.
-    /// `stimulated` is a list of neuron names to directly stimulate.
-    pub fn step(&mut self, stimulated: &[&str]) {
-        // 0. Clear fired neurons
-        self.fired_neurons.fill(false);
+    /// Get current state (ctm_get_current_state)
+    fn get_current_state(&self, id: u16) -> i16 {
+        if id < self.neurons_tot {
+            self.neuron_current[id as usize] as i16
+        } else {
+            self.muscle_current[(id - self.neurons_tot) as usize]
+        }
+    }
 
-        // 1. Apply external stimulation
-        for &name in stimulated {
-            if let Some(&id) = self.neuron_map.get(name) {
+    /// Get next state (ctm_get_next_state)
+    fn get_next_state(&self, id: u16) -> i16 {
+        if id < self.neurons_tot {
+            self.neuron_next[id as usize] as i16
+        } else {
+            self.muscle_next[(id - self.neurons_tot) as usize]
+        }
+    }
+
+    /// Set next state with saturation (ctm_set_next_state)
+    fn set_next_state(&mut self, id: u16, val: i16) {
+        if id < self.neurons_tot {
+            let v = if val > 127 {
+                127
+            } else if val < -128 {
+                -128
+            } else {
+                val
+            };
+            self.neuron_next[id as usize] = v as i8;
+        } else {
+            self.muscle_next[(id - self.neurons_tot) as usize] = val;
+        }
+    }
+
+    /// Add to next state (ctm_add_to_next_state)
+    fn add_to_next_state(&mut self, id: u16, val: i8) {
+        let curr = self.get_next_state(id);
+        self.set_next_state(id, curr + val as i16);
+    }
+
+    /// Iterate state (ctm_iterate_state)
+    fn iterate_state(&mut self) {
+        self.neuron_current.copy_from_slice(&self.neuron_next);
+        self.muscle_current.copy_from_slice(&self.muscle_next);
+        self.muscle_next.fill(0);
+    }
+
+    /// Meta flag discharge (ctm_meta_flag_discharge)
+    fn meta_flag_discharge(&mut self, id: u16, val: u8) {
+        let idx = id as usize;
+        if val == 0 {
+            self.meta[idx] &= 0x7F;
+        } else {
+            self.meta[idx] = 0x80;
+        }
+    }
+
+    /// Handle idle neurons (ctm_meta_handle_idle_neurons)
+    fn meta_handle_idle_neurons(&mut self) {
+        const MAX_IDLE: u8 = 100; // example
+        for i in 0..self.neurons_tot {
+            let idx = i as usize;
+
+            let low = self.meta[idx] & 0x7F;
+            let high = self.meta[idx] & 0x80;
+
+            let mut idle_ticks = low;
+
+            if self.get_next_state(i) == self.get_current_state(i) {
+                self.meta[idx] = self.meta[idx].wrapping_add(1);
+                idle_ticks = idle_ticks.wrapping_add(1);
+            } else {
+                self.meta[idx] = high;
+            }
+
+            if idle_ticks > MAX_IDLE {
+                self.set_next_state(i, 0);
+                self.meta[idx] = high;
+            }
+        }
+    }
+
+    /// Propagate connections (ctm_ping_neuron)
+    fn ping_neuron(&mut self, id: u16) {
+        let address = ROM[id as usize + 1];
+        let end = ROM[id as usize + 2];
+        let len = end - address;
+
+        for i in 0..len {
+            let rom_word = ROM[(address + i) as usize];
+            let conn = parse_rom_word(rom_word);
+            self.add_to_next_state(conn.id, conn.weight);
+        }
+    }
+
+    /// Discharge neuron (ctm_discharge_neuron)
+    fn discharge_neuron(&mut self, id: u16) {
+        self.ping_neuron(id);
+        self.set_next_state(id, 0);
+    }
+
+    /// Complete one neural cycle (ctm_neural_cycle)
+    pub fn neural_cycle(&mut self, stim_neuron: Option<&[u16]>) {
+        const THRESHOLD: i8 = 30; // example
+
+        if let Some(stim) = stim_neuron {
+            for &id in stim {
                 self.ping_neuron(id);
             }
         }
 
-        // 2. Check for discharges
-        for id in 0..self.neuron_current_buffer.len() {
-            if self.neuron_current_buffer[id] > self.threshold {
-                self.discharge_neuron(id);
+        for i in 0..self.neurons_tot {
+            if self.get_current_state(i) > THRESHOLD as i16 {
+                self.discharge_neuron(i);
+                self.meta_flag_discharge(i, 1);
+            } else {
+                self.meta_flag_discharge(i, 0);
             }
         }
 
-        // 3. Swap buffers
-        std::mem::swap(
-            &mut self.neuron_current_buffer,
-            &mut self.neuron_next_buffer,
-        );
-
-        // 4. Clear next buffer for the next tick
-        self.neuron_next_buffer.fill(0.);
+        self.meta_handle_idle_neurons();
+        self.iterate_state();
     }
 
-    /// Propagate all outgoing connections of a neuron
-    fn ping_neuron(&mut self, id: usize) {
-        for conn in &self.adjacency[id] {
-            self.neuron_next_buffer[conn.target] += conn.weight;
-        }
+    /// Get weight (ctm_get_weight)
+    pub fn get_weight(&self, id: u16) -> i16 {
+        self.get_current_state(id)
     }
 
-    /// A neuron fires: propagate, then reset its value
-    fn discharge_neuron(&mut self, id: usize) {
-        self.ping_neuron(id);
-        self.neuron_next_buffer[id] = 0.;
-        self.fired_neurons[id] = true;
+    /// Get discharge flag (ctm_get_discharge)
+    pub fn get_discharge(&self, id: u16) -> u8 {
+        self.meta[id as usize] >> 7
     }
-
-    // For the given muscle_set, output whether that muscle has discharged or not
-    pub fn discharge_query(&self, muscle_set: &[&str], muscle_result: &mut Vec<bool>) {
-        for (i, muscle) in muscle_set.iter().enumerate() {
-            if let Some(&id) = self.neuron_map.get(*muscle) {
-                muscle_result[i] = self.fired_neurons[id];
-            }
+    pub fn discharge_query(&self, input_id: &[u16], query_result: &mut [u8]) {
+        for i in 0..input_id.len() {
+            let id = input_id[i] as usize;
+            let discharged = self.meta[id] >> 7;
+            query_result[i] = discharged;
         }
     }
 }

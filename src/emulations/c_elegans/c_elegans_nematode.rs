@@ -1,54 +1,108 @@
 use std::fs::File;
 
-use crate::connectome::Connectome;
+use crate::{
+    connectome::Connectome,
+    emulations::c_elegans::{neuron_ids::NeuronId, rom::ROM},
+};
 use std::io::Write;
 
 pub fn test() -> Result<(), String> {
     const THRESHOLD: f32 = 30.;
 
-    pub const MOTOR_NEURON_B: &[&str] = &[
-        "DB1", "DB2", "DB3", "DB4", "DB5", "DB6", "DB7", "VB1", "VB2", "VB3", "VB4", "VB5", "VB6",
-        "VB7", "VB8", "VB9", "VB10", "VB11",
+    pub const MOTOR_NEURON_B: [u16; 18] = [
+        NeuronId::DB1 as u16,
+        NeuronId::DB2 as u16,
+        NeuronId::DB3 as u16,
+        NeuronId::DB4 as u16,
+        NeuronId::DB5 as u16,
+        NeuronId::DB6 as u16,
+        NeuronId::DB7 as u16,
+        NeuronId::VB1 as u16,
+        NeuronId::VB2 as u16,
+        NeuronId::VB3 as u16,
+        NeuronId::VB4 as u16,
+        NeuronId::VB5 as u16,
+        NeuronId::VB6 as u16,
+        NeuronId::VB7 as u16,
+        NeuronId::VB8 as u16,
+        NeuronId::VB9 as u16,
+        NeuronId::VB10 as u16,
+        NeuronId::VB11 as u16,
     ];
 
-    pub const MOTOR_NEURON_A: &[&str] = &[
-        "DA1", "DA2", "DA3", "DA4", "DA5", "DA6", "DA7", "DA8", "DA9", "VA1", "VA2", "VA3", "VA4",
-        "VA5", "VA6", "VA7", "VA8", "VA9", "VA10", "VA11", "VA12",
+    pub const MOTOR_NEURON_A: [u16; 21] = [
+        NeuronId::DA1 as u16,
+        NeuronId::DA2 as u16,
+        NeuronId::DA3 as u16,
+        NeuronId::DA4 as u16,
+        NeuronId::DA5 as u16,
+        NeuronId::DA6 as u16,
+        NeuronId::DA7 as u16,
+        NeuronId::DA8 as u16,
+        NeuronId::DA9 as u16,
+        NeuronId::VA1 as u16,
+        NeuronId::VA2 as u16,
+        NeuronId::VA3 as u16,
+        NeuronId::VA4 as u16,
+        NeuronId::VA5 as u16,
+        NeuronId::VA6 as u16,
+        NeuronId::VA7 as u16,
+        NeuronId::VA8 as u16,
+        NeuronId::VA9 as u16,
+        NeuronId::VA10 as u16,
+        NeuronId::VA11 as u16,
+        NeuronId::VA12 as u16,
     ];
 
-    let nose_touch_neurons = vec![
-        "FLPR", "FLPL", "ASHL", "ASHR", "IL1VL", "IL1VR", "OLQDL", "OLQDR", "OLQVR", "OLQV",
+    let nose_touch_neurons: Vec<u16> = vec![
+        NeuronId::FLPR as u16,
+        NeuronId::FLPL as u16,
+        NeuronId::ASHL as u16,
+        NeuronId::ASHR as u16,
+        NeuronId::IL1VL as u16,
+        NeuronId::IL1VR as u16,
+        NeuronId::OLQDL as u16,
+        NeuronId::OLQDR as u16,
+        NeuronId::OLQVR as u16,
+        NeuronId::OLQVL as u16,
     ];
 
     let chemotaxis_neurons = [
-        "ADFL", "ADFR", "ASGR", "ASGL", "ASIL", "ASIR", "ASJR", "ASJL",
+        NeuronId::ADFL as u16,
+        NeuronId::ADFR as u16,
+        NeuronId::ASGR as u16,
+        NeuronId::ASGL as u16,
+        NeuronId::ASIL as u16,
+        NeuronId::ASIR as u16,
+        NeuronId::ASJR as u16,
+        NeuronId::ASJL as u16,
     ];
 
     let mut out_file = File::create("./motor_ab.dat").map_err(|err| err.to_string())?;
     let f = File::open("./src/emulations/c_elegans/CElegansNeuronTables/Connectome.csv")
         .map_err(|err| err.to_string())?;
-    let mut connectome = Connectome::new(f, THRESHOLD)?;
-    let mut motor_a_result: Vec<bool> = vec![false; MOTOR_NEURON_A.len()];
-    let mut motor_b_result: Vec<bool> = vec![false; MOTOR_NEURON_B.len()];
+    let mut connectome = Connectome::new();
+    let mut motor_a_result: Vec<u8> = vec![0; MOTOR_NEURON_A.len()];
+    let mut motor_b_result: Vec<u8> = vec![0; MOTOR_NEURON_B.len()];
 
     // Perform burn in
     for _ in 0..1000 {
-        connectome.step(&chemotaxis_neurons);
+        connectome.neural_cycle(Some(&chemotaxis_neurons));
     }
 
     // Run  100 cycles of chemotaxis
     for _ in 0..1000 {
-        connectome.step(&chemotaxis_neurons);
-        connectome.discharge_query(MOTOR_NEURON_B, &mut motor_b_result);
-        connectome.discharge_query(MOTOR_NEURON_A, &mut motor_a_result);
+        connectome.neural_cycle(Some(&chemotaxis_neurons));
+        connectome.discharge_query(&MOTOR_NEURON_B, &mut motor_b_result);
+        connectome.discharge_query(&MOTOR_NEURON_A, &mut motor_a_result);
         print_motor_ab_discharges(&mut out_file, &motor_a_result, &motor_b_result)
             .map_err(|err| err.to_string())?;
     }
 
     for _ in 0..1000 {
-        connectome.step(&nose_touch_neurons);
-        connectome.discharge_query(MOTOR_NEURON_B, &mut motor_b_result);
-        connectome.discharge_query(MOTOR_NEURON_A, &mut motor_a_result);
+        connectome.neural_cycle(Some(&nose_touch_neurons));
+        connectome.discharge_query(&MOTOR_NEURON_B, &mut motor_b_result);
+        connectome.discharge_query(&MOTOR_NEURON_A, &mut motor_a_result);
         print_motor_ab_discharges(&mut out_file, &motor_a_result, &motor_b_result)
             .map_err(|err| err.to_string())?;
     }
@@ -57,17 +111,17 @@ pub fn test() -> Result<(), String> {
 
 fn print_motor_ab_discharges<W: Write>(
     mut w: W,
-    a: &Vec<bool>,
-    b: &Vec<bool>,
+    a: &Vec<u8>,
+    b: &Vec<u8>,
 ) -> Result<(), std::io::Error> {
     for i in 0..a.len() {
-        write!(w, "{} ", if a[i] { 1 } else { 0 })?;
+        write!(w, "{} ", a[i])?;
     }
 
     for i in 0..b.len() - 1 {
-        write!(w, "{} ", if b[i] { 1 } else { 0 })?;
+        write!(w, "{} ", b[i])?;
     }
 
-    writeln!(w, "{}", if b[b.len() - 1] { 1 } else { 0 })?;
+    writeln!(w, "{}", b[b.len() - 1])?;
     Ok(())
 }
