@@ -1,14 +1,9 @@
 use std::fs::File;
 
-use crate::{
-    connectome::Connectome,
-    emulations::c_elegans::{neuron_ids::NeuronId, rom::ROM},
-};
+use crate::{connectome::Connectome, emulations::c_elegans::neuron_ids::NeuronId};
 use std::io::Write;
 
 pub fn test() -> Result<(), String> {
-    const THRESHOLD: f32 = 30.;
-
     pub const MOTOR_NEURON_B: [u16; 18] = [
         NeuronId::DB1 as u16,
         NeuronId::DB2 as u16,
@@ -79,8 +74,6 @@ pub fn test() -> Result<(), String> {
     ];
 
     let mut out_file = File::create("./motor_ab.dat").map_err(|err| err.to_string())?;
-    let f = File::open("./src/emulations/c_elegans/CElegansNeuronTables/Connectome.csv")
-        .map_err(|err| err.to_string())?;
     let mut connectome = Connectome::new();
     let mut motor_a_result: Vec<u8> = vec![0; MOTOR_NEURON_A.len()];
     let mut motor_b_result: Vec<u8> = vec![0; MOTOR_NEURON_B.len()];

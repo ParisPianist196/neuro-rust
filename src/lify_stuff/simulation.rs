@@ -1,6 +1,7 @@
 use nalgebra::DMatrix;
 
-use crate::history::History;
+use crate::lify_stuff::history::History;
+
 #[derive(Default, Debug)]
 pub struct NeuronSimulation {
     pub v: History,

@@ -1,8 +1,9 @@
-use crate::first_order_lif::FirstOrderLif;
-use crate::simulation::NeuronSimulationCollection;
 use nalgebra::{DMatrix, DVector};
 use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
+
+use crate::lify_stuff::first_order_lif::FirstOrderLif;
+use crate::lify_stuff::simulation::NeuronSimulationCollection;
 
 pub struct FirstOrderLifCollection {
     pub neurons: Vec<FirstOrderLif>,

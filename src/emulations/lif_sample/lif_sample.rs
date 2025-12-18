@@ -1,19 +1,15 @@
-use crate::first_order_lif::FirstOrderLif;
-use crate::first_order_synapse::FirstOrderSynapse;
-
-use crate::first_order_lif_collection::FirstOrderLifCollection;
-
-use crate::first_order_synapses_collection::FirstOrderSynapsesCollection;
-
-use crate::waveforms::Sine;
 use nalgebra::DVector;
 
 use plotly::{Plot, Scatter};
 
-use crate::{
+use crate::lify_stuff::{
+    first_order_lif::FirstOrderLif,
+    first_order_lif_collection::FirstOrderLifCollection,
+    first_order_synapse::FirstOrderSynapse,
+    first_order_synapses_collection::FirstOrderSynapsesCollection,
     simulation::ExperimentSimulation,
     utils::{compute_tuning_curve, weird_waveform},
-    waveforms::PlotWaveform,
+    waveforms::{PlotWaveform, Sine},
 };
 
 fn plot_synapse_example() -> Result<(), Box<dyn std::error::Error>> {

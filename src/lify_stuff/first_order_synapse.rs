@@ -1,4 +1,4 @@
-use crate::simulation::SynapseSimulation;
+use crate::lify_stuff::simulation::SynapseSimulation;
 
 pub struct FirstOrderSynapse {
     pub tau_s: f64,

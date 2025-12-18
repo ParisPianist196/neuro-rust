@@ -1,4 +1,6 @@
-use crate::{first_order_synapse::FirstOrderSynapse, simulation::SynapseSimulationCollection};
+use crate::lify_stuff::{
+    first_order_synapse::FirstOrderSynapse, simulation::SynapseSimulationCollection,
+};
 
 pub struct FirstOrderSynapsesCollection {
     pub synapses: Vec<FirstOrderSynapse>,

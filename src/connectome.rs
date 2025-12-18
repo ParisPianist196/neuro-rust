@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::emulations::c_elegans::rom::ROM;
 
 /// Struct for representing a neuron connection
@@ -30,7 +28,6 @@ fn parse_rom_word(rom_word: u16) -> NeuronConnection {
 /// Connectome struct (layout mirrors C)
 pub struct Connectome {
     neurons_tot: u16,
-    muscles_tot: u8,
 
     neuron_current: Vec<i8>,
     neuron_next: Vec<i8>,
@@ -54,7 +51,6 @@ impl Connectome {
 
         Self {
             neurons_tot,
-            muscles_tot,
 
             neuron_current: vec![0; neurons_usize],
             neuron_next: vec![0; neurons_usize],
@@ -190,15 +186,6 @@ impl Connectome {
         self.iterate_state();
     }
 
-    /// Get weight (ctm_get_weight)
-    pub fn get_weight(&self, id: u16) -> i16 {
-        self.get_current_state(id)
-    }
-
-    /// Get discharge flag (ctm_get_discharge)
-    pub fn get_discharge(&self, id: u16) -> u8 {
-        self.meta[id as usize] >> 7
-    }
     pub fn discharge_query(&self, input_id: &[u16], query_result: &mut [u8]) {
         for i in 0..input_id.len() {
             let id = input_id[i] as usize;

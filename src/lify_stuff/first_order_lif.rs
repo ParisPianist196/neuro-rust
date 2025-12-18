@@ -1,6 +1,6 @@
 use nalgebra::clamp;
 
-use crate::simulation::NeuronSimulation;
+use crate::lify_stuff::simulation::NeuronSimulation;
 
 pub struct FirstOrderLif {
     pub tau_rc: f64,
