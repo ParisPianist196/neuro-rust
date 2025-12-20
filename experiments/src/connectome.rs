@@ -165,7 +165,7 @@ impl Connectome {
 
     /// Complete one neural cycle (ctm_neural_cycle)
     pub fn neural_cycle(&mut self, stim_neuron: Option<&[u16]>) {
-        const THRESHOLD: i8 = 30; // example
+        const THRESHOLD: i8 = 40; // example
 
         if let Some(stim) = stim_neuron {
             for &id in stim {
